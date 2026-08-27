@@ -1,0 +1,69 @@
+name: YouTube Channel Archive
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 6시간마다 실행
+  workflow_dispatch:        # 수동 실행도 가능
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write  # 필요시 결과 커밋용
+
+    env:
+      CHANNEL_URL: "https://youtube.com/@supe-tv"
+      RATE_LIMIT: "2"  # 분당 2개
+      MAX_VIDEOS: "100"  # 한 번에 처리할 최대 영상 수
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install yt-dlp youtube-transcript-api
+
+      - name: Run batch archive
+        id: archive
+        run: |
+          python scripts/batch_archive_channel.py \
+            --channel-url "${{ env.CHANNEL_URL }}" \
+            --rate-limit ${{ env.RATE_LIMIT }} \
+            --max-videos ${{ env.MAX_VIDEOS }} \
+            --output-dir ./archive_output
+
+      - name: Upload archive as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-archive-${{ github.run_id }}
+          path: archive_output/
+          retention-days: 30
+
+      - name: Create summary
+        run: |
+          echo "## YouTube Archive Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Channel**: @supe-tv" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID**: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Time**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          if [ -f archive_output/summary.json ]; then
+            cat archive_output/summary.json | jq -r '"**Total**: \(.total) | **Success**: \(.success) | **Failed**: \(.failed) | **Rate**: \(.success_rate)%"' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # 선택사항: 결과를 리포지토리에 커밋 (선택사항)
+      # - name: Commit results
+      #   if: github.event_name == 'schedule'
+      #   run: |
+      #     git config user.name "github-actions[bot]"
+      #     git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      #     git add archive_output/
+      #     git commit -m "Archive update: $(date -u +'%Y-%m-%d %H:%M')" || echo "No changes"
+      #     git push
