@@ -16,6 +16,7 @@ jobs:
       CHANNEL_URL: "https://youtube.com/@supe-tv"
       RATE_LIMIT: "2"  # 분당 2개
       MAX_VIDEOS: "100"  # 한 번에 처리할 최대 영상 수
+      YT_LANGUAGES: "ko,en"  # 자막 언어 우선순위
 
     steps:
       - name: Checkout repository
@@ -27,19 +28,34 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
+      - name: Set up Deno (for yt-dlp JavaScript runtime)
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
       - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install yt-dlp youtube-transcript-api
 
+      - name: Prepare YouTube cookies from secret
+        if: env.YOUTUBE_COOKIES != ''
+        run: |
+          echo "${{ secrets.YOUTUBE_COOKIES }}" > youtube_cookies.txt
+          echo "Cookies file created: $(wc -l < youtube_cookies.txt) lines"
+
       - name: Run batch archive
         id: archive
+        env:
+          YOUTUBE_COOKIES_FILE: ${{ secrets.YOUTUBE_COOKIES != '' && 'youtube_cookies.txt' || '' }}
         run: |
           python scripts/batch_archive_channel.py \
             --channel-url "${{ env.CHANNEL_URL }}" \
             --rate-limit ${{ env.RATE_LIMIT }} \
             --max-videos ${{ env.MAX_VIDEOS }} \
-            --output-dir ./archive_output
+            --language "${{ env.YT_LANGUAGES }}" \
+            --output-dir ./archive_output \
+            ${YOUTUBE_COOKIES_FILE:+"--cookies-file"} ${YOUTUBE_COOKIES_FILE:+"youtube_cookies.txt"}
 
       - name: Upload archive as artifact
         uses: actions/upload-artifact@v4
@@ -55,7 +71,7 @@ jobs:
           echo "**Run ID**: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
           echo "**Time**: $(date -u)" >> $GITHUB_STEP_SUMMARY
           if [ -f archive_output/summary.json ]; then
-            cat archive_output/summary.json | jq -r '"**Total**: \(.total) | **Success**: \(.success) | **Failed**: \(.failed) | **Rate**: \(.success_rate)%"' >> $GITHUB_STEP_SUMMARY
+            cat archive_output/summary.json | jq -r '"**Total**: \(.total) | **Success**: \(.success) | **Failed**: \(.failed) | **Rate**: \(.success_rate)"' >> $GITHUB_STEP_SUMMARY
           fi
 
       # 선택사항: 결과를 리포지토리에 커밋 (선택사항)
