@@ -13,6 +13,7 @@ jobs:
       contents: write  # 필요시 결과 커밋용
 
     env:
+      YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
       CHANNEL_URL: "https://youtube.com/@supe-tv"
       RATE_LIMIT: "2"  # 분당 2개
       MAX_VIDEOS: "100"  # 한 번에 처리할 최대 영상 수
@@ -41,7 +42,8 @@ jobs:
       - name: Prepare YouTube cookies from secret
         if: env.YOUTUBE_COOKIES != ''
         run: |
-          echo "${{ secrets.YOUTUBE_COOKIES }}" > youtube_cookies.txt
+          printf '%s
+' "$YOUTUBE_COOKIES" > youtube_cookies.txt
           echo "Cookies file created: $(wc -l < youtube_cookies.txt) lines"
 
       - name: Run batch archive
