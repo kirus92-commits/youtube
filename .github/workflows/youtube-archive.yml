@@ -42,8 +42,7 @@ jobs:
       - name: Prepare YouTube cookies from secret
         if: env.YOUTUBE_COOKIES != ''
         run: |
-          printf '%s
-' "$YOUTUBE_COOKIES" > youtube_cookies.txt
+          echo "$YOUTUBE_COOKIES" > youtube_cookies.txt
           echo "Cookies file created: $(wc -l < youtube_cookies.txt) lines"
 
       - name: Run batch archive
